@@ -114,6 +114,18 @@ func validator(){
 
 }
 
+//Company data
+/*
+db.userDetails_collection.insert({"_id":"5c90b89aecd0ebeadd424fd5","user_id":"5c90b89aecd0ebeadd424fd5","user_name":"rozgar","user_role":"company","identity_code":"hrp","firebase_token":"","sponsor_uname":"","hrp":0,"account_status":"Active","user_added_on":NumberLong("1561360783332"),"personal_info":{"full_name":"Happy Rozgar","mobile_number":"9923724724","dob":"12/11/1990","gender":"Male"},"bank_details":{"account_number":"1234567890","ifs_code":"ABCD0123456"},"transaction_history":[],"direct_child_count":2})*/
+
+
+/*Admin mazhar
+db.userDetails_collection.insert({"_id":"5cc5a7850953133b24cde4e7","user_id":"5cc5a7850953133b24cde4e7","user_name":"mazhar","user_role":"admin","identity_code":"hrp,02","firebase_token":"","sponsor_uname":"rozgar","hrp":0,"account_status":"Active","user_added_on":NumberLong("1561360783332"),"personal_info":{"full_name":"Mazhar Shaikh","mobile_number":"9975147441","dob":"12/11/1990","gender":"Male"},"bank_details":{"account_number":"1234567890","ifs_code":"ABCD0123456"},"transaction_history":[],"direct_child_count":0})
+*/
+
+/*Admin sallu
+db.userDetails_collection.insert({"_id":"5c90b95eecd0ebeadd424fd6","user_id":"5c90b95eecd0ebeadd424fd6","user_name":"sallu","user_role":"admin","identity_code":"hrp,01","firebase_token":"","sponsor_uname":"rozgar","hrp":0,"account_status":"Active","user_added_on":NumberLong("1561360783332"),"personal_info":{"full_name":"Salahuddin Shaikh","mobile_number":"8888687533","dob":"12/11/1990","gender":"Male"},"bank_details":{"account_number":"1234567890","ifs_code":"ABCD0123456"},"transaction_history":[],"direct_child_count":0})
+*/
 //Check empty struct or not (reflect package needed)
 /*if reflect.DeepEqual(eventStructObj, []StructConfig.Event{}) {
   responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:""}})

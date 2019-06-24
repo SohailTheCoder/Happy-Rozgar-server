@@ -15,7 +15,7 @@ type ArgumentList struct {
 type InfoStruct struct {
 	TransBy string `json:"trans_by" bson:"trans_by"`
 	TransFor string `json:"trans_for" bson:"trans_for"`
-	TransOn string `json:"trans_on" bson:"trans_on"`
+	TransOn int64 `json:"trans_on" bson:"trans_on"`
 }
 
 type UserInstance struct {
@@ -34,7 +34,7 @@ type UserDetails struct {
 	SponsorUname string `json:"sponsor_uname" bson:"sponsor_uname"`
 	HRP float64 `json:"hrp" bson:"hrp"`
 	AccountStatus string `json:"account_status" bson:"account_status"`
-	UserAddedOn string `json:"user_added_on" bson:"user_added_on"`
+	UserAddedOn int64 `json:"user_added_on" bson:"user_added_on"`
 	PersonalInfo PersonalInfo `json:"personal_info" bson:"personal_info"`
 	BankDetails BankDetails `json:"bank_details" bson:"bank_details"`
 	DirectChildCount int `json:"direct_child_count" bson:"direct_child_count"`
@@ -61,7 +61,7 @@ type TransactionHistory struct {
 	To string `json:"to" bson:"to"`
 	From string `json:"from" bson:"from"`
 	Units float64 `json:"units" bson:"units"`
-	TransactionOn string `json:"transaction_on" bson:"transaction_on"`
+	TransactionOn int64 `json:"transaction_on" bson:"transaction_on"`
 	TransactionFor string `json:"transaction_for" bson:"transaction_for"`
 	BankTransId string `json:"bank_trans_id" bson:"bank_trans_id"`
 	Status string `json:"status" bson:"status"`
@@ -73,7 +73,7 @@ type TransactionHistory struct {
 type AdminActivityLogs struct {
 	ActivityBy string `json:"activity_by" bson:"activity_by"`
 	ActivityFor string `json:"activity_for" bson:"activity_for"`
-	ActivityOn string `json:"activity_on" bson:"activity_on"`
+	ActivityOn int64 `json:"activity_on" bson:"activity_on"`
 	ActivityStatus string `json:"activity_status" bson:"activity_status"`
 	ActivityPerformedOn string `json:"activity_performed_on" bson:"activity_performed_on"`
 	ActivityDetails ActivityDetails `json:"activity_details" bson:"activity_details"`
@@ -89,7 +89,7 @@ type ActivityDetails struct {
 type BroadcastDetails struct {
 	BroadMsg string `json:"broad_msg" bson:"broad_msg"`
 	BroadBy string `json:"broad_by" bson:"broad_by"`
-	BroadOn string `json:"broad_on" bson:"broad_on"`
+	BroadOn int64 `json:"broad_on" bson:"broad_on"`
 	BroadReason string `json:"broad_reason" bson:"broad_reason"`
 	BroadStatus string `json:"broad_status" bson:"broad_status"`
 }

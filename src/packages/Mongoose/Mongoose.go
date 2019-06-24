@@ -137,7 +137,8 @@ func AddUserDetails(w http.ResponseWriter, r *http.Request,interfaceName string)
         personalInfoStruct := StructConfig.PersonalInfo{FullName:credMap["fullName"].(string),/*Address:credMap["address"].(string),*/MobileNumber:credMap["mobileNumber"].(string),Gender:credMap["gender"].(string),DOB:credMap["dob"].(string)}
         bankDetailsStruct := StructConfig.BankDetails{AccountNumber:credMap["accountNumber"].(string),/*BankName:credMap["bankName"].(string),*/IFSCode:credMap["ifsCode"].(string)/*,BankAddress:credMap["bankAddress"].(string)*/}
         userId := bson.ObjectId(bson.NewObjectId()).Hex()
-        userDetailsStruct = StructConfig.UserDetails{UserId:userId,Username:credMap["userName"].(string),IdentityCode:credMap["sponsorIdentityCode"].(string)+","+strconv.Itoa(int(generatedIdCode)),FirebaseToken:"",SponsorUname:credMap["sponsorUName"].(string),HRP:0.00,AccountStatus:"Pending",UserAddedOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),PersonalInfo:personalInfoStruct,BankDetails:bankDetailsStruct}
+        //userDetailsStruct = StructConfig.UserDetails{UserId:userId,Username:credMap["userName"].(string),IdentityCode:credMap["sponsorIdentityCode"].(string)+","+strconv.Itoa(int(generatedIdCode)),FirebaseToken:"",SponsorUname:credMap["sponsorUName"].(string),HRP:0.00,AccountStatus:"Pending",UserAddedOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),PersonalInfo:personalInfoStruct,BankDetails:bankDetailsStruct}
+        userDetailsStruct = StructConfig.UserDetails{UserId:userId,Username:credMap["userName"].(string),IdentityCode:credMap["sponsorIdentityCode"].(string)+","+strconv.Itoa(int(generatedIdCode)),FirebaseToken:"",SponsorUname:credMap["sponsorUName"].(string),HRP:0.00,AccountStatus:"Pending",UserAddedOn:time.Now().UnixNano()/(int64(time.Millisecond)),PersonalInfo:personalInfoStruct,BankDetails:bankDetailsStruct}
         change := bson.M{"$inc": bson.M{"direct_child_count": 1}}
         runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
 
@@ -194,7 +195,7 @@ func UpdateUserProfile(w http.ResponseWriter, r *http.Request,interfaceName stri
     }else if isUserExist {
       personalInfoStruct := StructConfig.PersonalInfo{FullName:credMap["fullName"].(string),/*Address:credMap["address"].(string),*/MobileNumber:credMap["mobileNumber"].(string),Gender:credMap["gender"].(string),DOB:credMap["dob"].(string)}
       actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:0.0}
-      adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Change Password",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["adminUserName"].(string),ActivityDetails:actDetailsStruct}
+      adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Change Password",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["adminUserName"].(string),ActivityDetails:actDetailsStruct}
       runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
       ops := []txn.Op{{
           //Adding new user instance
@@ -261,7 +262,7 @@ func getFloat(unk interface{}) (float64, error) {
 }
 
 func setInfoStruct(TransBy,TransFor string)StructConfig.InfoStruct{
-  return StructConfig.InfoStruct{TransBy:TransBy,TransFor:TransFor,TransOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10)}
+  return StructConfig.InfoStruct{TransBy:TransBy,TransFor:TransFor,TransOn:time.Now().UnixNano()/(int64(time.Millisecond))}
 }
 
 func UpdateBankDetails(w http.ResponseWriter, r *http.Request,interfaceName string){
@@ -276,7 +277,7 @@ func UpdateBankDetails(w http.ResponseWriter, r *http.Request,interfaceName stri
     }else if isUserExist {
       bankDetailsStruct := StructConfig.BankDetails{AccountNumber:credMap["accountNumber"].(string),/*BankName:credMap["bankName"].(string),*/IFSCode:credMap["ifsCode"].(string)/*,BankAddress:credMap["bankAddress"].(string)*/}
       ops := []txn.Op{}
-      updt := bson.M{"$inc": bson.M{"hrp": -50.0},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-50.0,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Bank Details Update",BankTransId:"",Status:"Done",Level:""}}}
+      updt := bson.M{"$inc": bson.M{"hrp": -50.0},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-50.0,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Bank Details Update",BankTransId:"",Status:"Done",Level:""}}}
       query := bson.M{"$set":bson.M{"bank_details":bankDetailsStruct}}
       runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
       //if user_name != "" && level != "" && id != "" {
@@ -337,8 +338,8 @@ func WithdrawalRequest(w http.ResponseWriter, r *http.Request,interfaceName stri
         if floatErr != nil {
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
-          updt := bson.M{"$inc": bson.M{"hrp": -withdrawalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-withdrawalAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Withdrawal",BankTransId:"",Status:"Processing",Level:""}}}
-          updtCmpny := bson.M{"$inc": bson.M{"hrp": withdrawalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:withdrawalAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Withdrawal",BankTransId:"",Status:"Done",Level:""}}}
+          updt := bson.M{"$inc": bson.M{"hrp": -withdrawalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-withdrawalAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Withdrawal",BankTransId:"",Status:"Processing",Level:""}}}
+          updtCmpny := bson.M{"$inc": bson.M{"hrp": withdrawalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:withdrawalAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Withdrawal",BankTransId:"",Status:"Done",Level:""}}}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Adding new user instance
@@ -362,11 +363,22 @@ func WithdrawalRequest(w http.ResponseWriter, r *http.Request,interfaceName stri
             if resumeErr := runner.Resume(id); resumeErr != nil {
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
             }else{
-
+              data := make(map[string]string)
+              data["title"] = "Happy Rozgar"
+              data["body"] = "Withdrawal request from "+credMap["userName"].(string)
+              _,fbTokens:= getAdminsFBToken();
+              //var ids = []string{fbTokens}
+              sendNotificationWithFCM(fbTokens,data)
               responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
             }
           }else{
             fmt.Println("Executed")
+            data := make(map[string]string)
+            data["title"] = "Happy Rozgar"
+            data["body"] = "Withdrawal request from "+credMap["userName"].(string)
+            _,fbTokens:= getAdminsFBToken();
+            //var ids = []string{fbTokens}
+            sendNotificationWithFCM(fbTokens,data)
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
           }
         }
@@ -435,7 +447,7 @@ func ActionOnWithdrawalRequest(w http.ResponseWriter, r *http.Request,interfaceN
       }else{
         collection = setCollection("rozgar_db", "adminActivityLog_collection")
         actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:withdrawalAmt}
-        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Withdrawal request set to "+credMap["status"].(string),ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
+        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Withdrawal request set to "+credMap["status"].(string),ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
         adminLogStructErr := collection.Insert(adminLogStruct)
         if adminLogStructErr != nil {
           fmt.Println("Error while inserting admin log : ",adminLogStructErr)
@@ -468,8 +480,8 @@ func DonateToCompany(w http.ResponseWriter, r *http.Request,interfaceName string
         if floatErr != nil {
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
-          updt := bson.M{"$inc": bson.M{"hrp": -donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-donateAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
-          updtCmpny := bson.M{"$inc": bson.M{"hrp": donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:donateAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
+          updt := bson.M{"$inc": bson.M{"hrp": -donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-donateAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
+          updtCmpny := bson.M{"$inc": bson.M{"hrp": donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:donateAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Adding new user instance
@@ -527,10 +539,10 @@ func DonateToCompanyAdmin(w http.ResponseWriter, r *http.Request,interfaceName s
         if floatErr != nil {
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
-          updt := bson.M{"$inc": bson.M{"hrp": -donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-donateAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
-          updtCmpny := bson.M{"$inc": bson.M{"hrp": donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:donateAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
+          updt := bson.M{"$inc": bson.M{"hrp": -donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-donateAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
+          updtCmpny := bson.M{"$inc": bson.M{"hrp": donateAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:donateAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Donation",BankTransId:"",Status:"Done",Level:""}}}
           actDetailsStruct := StructConfig.ActivityDetails{To:"Company",From:credMap["userName"].(string),Amount:donateAmt}
-          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Donate HRP",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
+          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Donate HRP",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
 
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
@@ -704,11 +716,43 @@ func getFBToken(userId string)(error,string){
   collection = setCollection("rozgar_db","userDetails_collection")
   err := collection.Find(bson.M{"_id":userId}).Select(bson.M{"firebase_token":1,"_id":0}).One(&m)
   if err != nil {
-    fmt.Println("Error while updating firebase token : ",err)
+    fmt.Println("Error while getFBToken : ",err)
     return err,""
   }else{
-    fmt.Println("Firebase token updated.")
+    //fmt.Println("Firebase token updated.")
     return nil,m["firebase_token"].(string)
+  }
+}
+
+func getAdminsFBToken()(error,[]string){
+  var fbTokens []string
+  m := []bson.M{}
+  collection = setCollection("rozgar_db","userDetails_collection")
+  err := collection.Find(bson.M{"user_role":"admin"}).Select(bson.M{"firebase_token":1,"_id":0}).All(&m)
+  if err != nil {
+    fmt.Println("Error while getAdminsFBToken : ",err)
+    return err,fbTokens
+  }else{
+    for i := 0; i < len(m); i++ {
+      fbTokens = append(fbTokens,m[i]["firebase_token"].(string))
+    }
+    return nil,fbTokens
+  }
+}
+
+func getUsersFBToken(userId string)(error,[]string){
+  var fbTokens []string
+  m := []bson.M{}
+  collection = setCollection("rozgar_db","userDetails_collection")
+  err := collection.Find(bson.M{"user_role":""}).Select(bson.M{"firebase_token":1,"_id":0}).All(&m)
+  if err != nil {
+    fmt.Println("Error while updating firebase token : ",err)
+    return err,fbTokens
+  }else{
+    for i := 0; i < len(m); i++ {
+      fbTokens = append(fbTokens,m[i]["firebase_token"].(string))
+    }
+    return nil,fbTokens
   }
 }
 
@@ -1107,7 +1151,8 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
           var userIdArr []string
           var userNameArr []string
           var fbTokenArr []string
-          levelMap := distributeHRPs(credMap["sponsorIdentityCode"].(string))
+          //levelMap := distributeHRPs(credMap["sponsorIdentityCode"].(string))
+          levelMap := distributeHRPs(getSponsorIdByIdCode(credMap["accountUserIdentityCode"].(string)))
 
           if val, ok := levelMap["level1"]; ok {
             //500 (33.33)  accountUserIdentityCode
@@ -1234,7 +1279,7 @@ func TransactionQueries(sponsorId string,sponsorUserName string,userId []string,
     //fmt.Println("Sponsor id: ",sponsorId," remainingAmt : ",remainingAmt," userId : ",userId," amt : ",amt)
     level := 0
     totalAmt := 1500.00
-    updtDec := bson.M{"$inc": bson.M{"hrp": -totalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:pendingUserName,From:sponsorUserName,Units:-totalAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Topup",BankTransId:"",Status:"Done",Level:""}}}
+    updtDec := bson.M{"$inc": bson.M{"hrp": -totalAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:pendingUserName,From:sponsorUserName,Units:-totalAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Topup",BankTransId:"",Status:"Done",Level:""}}}
     //fmt.Println("debiting query : ",updtDec)
     runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
     ops := []txn.Op{}
@@ -1249,7 +1294,7 @@ func TransactionQueries(sponsorId string,sponsorUserName string,userId []string,
     for index := 0;  index < len(userId); index++ {
       level++
       //if index != atPos {
-        updt := bson.M{"$inc": bson.M{"hrp": amt[index]},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:userNames[index],From:sponsorUserName,Units:amt[index],TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Level Income",BankTransId:"",Status:"Done",Level:"Level "+strconv.Itoa(level)}}}
+        updt := bson.M{"$inc": bson.M{"hrp": amt[index]},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:userNames[index],From:sponsorUserName,Units:amt[index],TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Level Income",BankTransId:"",Status:"Done",Level:"Level "+strconv.Itoa(level)}}}
         //fmt.Println("@ index : ",index," query is : ",updt," user id : ",userId[index])
 
         /*data := make(map[string]string)
@@ -1271,7 +1316,7 @@ func TransactionQueries(sponsorId string,sponsorUserName string,userId []string,
         })
 
     }
-    updtCmpn := bson.M{"$inc": bson.M{"hrp": remainingAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:pendingUserName,From:sponsorUserName,Units:remainingAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Topup",BankTransId:"",Status:"Done",Level:""}}}
+    updtCmpn := bson.M{"$inc": bson.M{"hrp": remainingAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:pendingUserName,From:sponsorUserName,Units:remainingAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Topup",BankTransId:"",Status:"Done",Level:""}}}
 
     //fmt.Println("Credit in company query : ",updtCmpn," Company id : ",companyId)
     ops = append(ops,txn.Op{
@@ -1351,7 +1396,7 @@ func getIdByIdCode(identityCode string)(map[string]string,error){
   collection = setCollection("rozgar_db","userDetails_collection")
   m := bson.M{}
   idUsernameMap := make(map[string]string)
-  err := collection.Find(bson.M{"identity_code": identityCode,"user_role":"Active"}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
+  err := collection.Find(bson.M{"identity_code": identityCode}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
   if err != nil {
     if err.Error() == "not found" {
       compId,_:= getCompanyId()
@@ -1366,6 +1411,21 @@ func getIdByIdCode(identityCode string)(map[string]string,error){
     idUsernameMap["user_name"] = m["user_name"].(string)
     return idUsernameMap,nil
   }
+}
+
+func getSponsorIdByIdCode(identityCode string)(string){
+  sponsorId := ""
+  result := strings.Split(identityCode,",")
+	if len(result) > 1 {
+    for i := 0; i < len(result)-1; i++ {
+      if i == len(result)-2{
+		      sponsorId = sponsorId+result[i]
+	    }else{
+	       sponsorId = sponsorId+result[i]+","
+	    }
+    }
+  }
+  return sponsorId
 }
 
 func distributeHRPs(sponsorIdentityCode string)map[string]string{
@@ -1496,8 +1556,8 @@ func TransferHRP(w http.ResponseWriter, r *http.Request,interfaceName string){
           fmt.Println("Error while getting toUserId : ",toUserIdErr)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
-          creditAmt := bson.M{"$inc": bson.M{"hrp": amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].( string),Units:amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Receive",BankTransId:"",Status:"Done",Level:""}}}
-          debitAmt := bson.M{"$inc": bson.M{"hrp": -amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].( string),Units:-amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Transfer",BankTransId:"",Status:"Done",Level:""}}}
+          creditAmt := bson.M{"$inc": bson.M{"hrp": amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].( string),Units:amtToTransfer,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Fund Receive",BankTransId:"",Status:"Done",Level:""}}}
+          debitAmt := bson.M{"$inc": bson.M{"hrp": -amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].( string),Units:-amtToTransfer,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Fund Transfer",BankTransId:"",Status:"Done",Level:""}}}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Transfer from
@@ -1573,10 +1633,12 @@ func TransferHRPAdmin(w http.ResponseWriter, r *http.Request,interfaceName strin
           fmt.Println("Error while getting toUserId : ",toUserIdErr)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
-          creditAmt := bson.M{"$inc": bson.M{"hrp": amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Receive",BankTransId:"",Status:"Done",Level:""}}}
-          debitAmt := bson.M{"$inc": bson.M{"hrp": -amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:-amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Transfer",BankTransId:"",Status:"Done",Level:""}}}
+          //creditAmt := bson.M{"$inc": bson.M{"hrp": amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Receive",BankTransId:"",Status:"Done",Level:""}}}
+          creditAmt := bson.M{"$inc": bson.M{"hrp": amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:amtToTransfer,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Fund Receive",BankTransId:"",Status:"Done",Level:""}}}
+          //debitAmt := bson.M{"$inc": bson.M{"hrp": -amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:-amtToTransfer,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Fund Transfer",BankTransId:"",Status:"Done",Level:""}}}
+          debitAmt := bson.M{"$inc": bson.M{"hrp": -amtToTransfer},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:toUserId["user_name"],From:credMap["userName"].(string),Units:-amtToTransfer,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Fund Transfer",BankTransId:"",Status:"Done",Level:""}}}
           actDetailsStruct := StructConfig.ActivityDetails{To:toUserId["user_name"],From:credMap["userName"].(string),Amount:amtToTransfer}
-          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Transfer HRP",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
+          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Transfer HRP",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Transfer from
@@ -2039,9 +2101,9 @@ func GenerateHRP(w http.ResponseWriter, r *http.Request,interfaceName string){
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           //change := bson.M{"$inc": bson.M{"hrp": HrpAmt}}
-          creditAmt := bson.M{"$inc": bson.M{"hrp": HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].(string),Units:HrpAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Generate HRP",BankTransId:"",Status:"Done",Level:""}}}
+          creditAmt := bson.M{"$inc": bson.M{"hrp": HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].(string),Units:HrpAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Generate HRP",BankTransId:"",Status:"Done",Level:""}}}
           actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:HrpAmt}
-          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Generate HRP",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
+          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Generate HRP",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Adding new user instance
@@ -2095,10 +2157,10 @@ func RequestHRP(w http.ResponseWriter, r *http.Request,interfaceName string){
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           //change := bson.M{"$inc": bson.M{"hrp": HrpAmt}}
-          debitAmt := bson.M{"$inc": bson.M{"hrp": -HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:credMap["userName"].(string),From:"company",Units:-HrpAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Request HRP",BankTransId:"",Status:"Done",Level:""}}}
-          creditAmt := bson.M{"$inc": bson.M{"hrp": HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:credMap["userName"].(string),From:"company",Units:HrpAmt,TransactionOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),TransactionFor:"Request HRP",BankTransId:"",Status:"Done",Level:""}}}
+          debitAmt := bson.M{"$inc": bson.M{"hrp": -HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:credMap["userName"].(string),From:"company",Units:-HrpAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Request HRP",BankTransId:"",Status:"Done",Level:""}}}
+          creditAmt := bson.M{"$inc": bson.M{"hrp": HrpAmt},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:credMap["userName"].(string),From:"company",Units:HrpAmt,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Request HRP",BankTransId:"",Status:"Done",Level:""}}}
           actDetailsStruct := StructConfig.ActivityDetails{To:credMap["userName"].(string),From:"Company",Amount:HrpAmt}
-          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Request HRP",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
+          adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Request HRP",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
           runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
           ops := []txn.Op{{
               //Adding new user instance
@@ -2156,7 +2218,7 @@ func ChangeUserPassword(w http.ResponseWriter, r *http.Request,interfaceName str
       }else if isUserExist {
         change := bson.M{"$set":bson.M{"password": credMap["password"].(string)}}
         actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:0.0}
-        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Change Password",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
+        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"Change Password",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
         runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
         ops := []txn.Op{{
             //Adding new user instance
@@ -2216,7 +2278,7 @@ func UpdateUserStatus(w http.ResponseWriter, r *http.Request,interfaceName strin
     }else if isUserExist {
       change := bson.M{"$set":bson.M{"account_status": credMap["status"].(string)}}
       actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:0.0}
-      adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"User status "+credMap["status"].(string),ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
+      adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["adminUserName"].(string),ActivityFor:"User status "+credMap["status"].(string),ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:credMap["userName"].(string),ActivityDetails:actDetailsStruct}
       runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
       ops := []txn.Op{{
           //Adding new user instance
@@ -2320,9 +2382,9 @@ func SetBroadcast(w http.ResponseWriter, r *http.Request,interfaceName string){
     }else if isUserExist {
       if disableBroadcast() {
         //change := bson.M{"$inc": bson.M{"hrp": HrpAmt}}
-        broadcastDetailsStruct := StructConfig.BroadcastDetails{BroadMsg:credMap["msg"].(string),BroadBy:credMap["userName"].(string),BroadOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),BroadReason:credMap["reason"].(string),BroadStatus:"Active"}
+        broadcastDetailsStruct := StructConfig.BroadcastDetails{BroadMsg:credMap["msg"].(string),BroadBy:credMap["userName"].(string),BroadOn:time.Now().UnixNano()/(int64(time.Millisecond)),BroadReason:credMap["reason"].(string),BroadStatus:"Active"}
         actDetailsStruct := StructConfig.ActivityDetails{To:"",From:"",Amount:0}
-        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Message Broadcasted",ActivityOn:strconv.FormatInt(time.Now().UnixNano()/(int64(time.Millisecond)),10),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
+        adminLogStruct := StructConfig.AdminActivityLogs{ActivityBy:credMap["userName"].(string),ActivityFor:"Message Broadcasted",ActivityOn:time.Now().UnixNano()/(int64(time.Millisecond)),ActivityStatus:"Done",ActivityPerformedOn:"Company",ActivityDetails:actDetailsStruct}
         runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
         ops := []txn.Op{{
             C:      "broadcast_collection",
@@ -2344,10 +2406,22 @@ func SetBroadcast(w http.ResponseWriter, r *http.Request,interfaceName string){
           if resumeErr := runner.Resume(id); resumeErr != nil {
               responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
           }else{
+            data := make(map[string]string)
+            data["title"] = "Happy Rozgar"
+            data["body"] = "New Broadcast Message."
+            _,fbTokens:= getAdminsFBToken();
+            //var ids = []string{fbTokens}
+            sendNotificationWithFCM(fbTokens,data)
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
           }
         }else{
           fmt.Println("Executed")
+          data := make(map[string]string)
+          data["title"] = "Happy Rozgar"
+          data["body"] = "New Broadcast Message."
+          _,fbTokens:= getAdminsFBToken();
+          //var ids = []string{fbTokens}
+          sendNotificationWithFCM(fbTokens,data)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
         }
       }
