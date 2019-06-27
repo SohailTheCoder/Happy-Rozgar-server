@@ -347,7 +347,7 @@ func WithdrawalRequest(w http.ResponseWriter, r *http.Request,interfaceName stri
               //Adding new user instance
               C:      "userDetails_collection",
               Id:     credMap["userId"].(string),
-              //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+              Assert: bson.M{"hrp": bson.M{"$gte": withdrawalAmt}},
               Update: updt,
             },
             {
