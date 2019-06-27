@@ -48,6 +48,7 @@ var funcMap = map[string]interface{}{
   "DonateToCompany": DonateToCompany,
   "RefreshFeed": RefreshFeed,
   "Logout": Logout,
+  "SetFeedback": SetFeedback,
   //Admin related
   "UsersList": UsersList,
   "WithdrawalRequestList": WithdrawalRequestList,
@@ -65,6 +66,7 @@ var funcMap = map[string]interface{}{
   "SetBroadcast": SetBroadcast,
   "UnsetBroadcast": UnsetBroadcast,
   "RefreshAdminFeed": RefreshAdminFeed,
+  "GetFeedback": GetFeedback,
 }
 
 func Caller(argumentList StructConfig.ArgumentList,w http.ResponseWriter, r *http.Request){
@@ -2450,6 +2452,70 @@ func disableBroadcast()bool{
     }
   }else{
     return true
+  }
+}
+
+func SetFeedback(w http.ResponseWriter, r *http.Request,interfaceName string){
+  credMap,err := Underdog.StringToMap(interfaceName)
+  if err != nil {
+    fmt.Println("error while converting string to map : ",err)
+    responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Error while converting string to map"}})
+  } else {
+    feedbackDetailsStruct := StructConfig.FeedbackDetails{FeedMsg:credMap["feedbackMsg"].(string),FeedBy:credMap["userName"].(string),FeedOn:time.Now().UnixNano()/(int64(time.Millisecond)),FeedReason:credMap["reason"].(string),FeedType:credMap["from"].(string)}
+    runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
+    ops := []txn.Op{{
+        C:      "feedback_collection",
+        Id:     bson.ObjectId(bson.NewObjectId()).Hex(),
+        //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+        Insert: feedbackDetailsStruct,
+      },
+    }
+    id := bson.NewObjectId() // Optional
+    runnerErr := runner.Run(ops, id,setInfoStruct(credMap["userName"].(string),"SetFeedback"))
+    if runnerErr != nil {
+      fmt.Println("Error while runner : ",runnerErr)
+      if resumeErr := runner.Resume(id); resumeErr != nil {
+          responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
+      }else{
+        data := make(map[string]string)
+        data["title"] = "Happy Rozgar"
+        data["body"] = "New Feedback/Ticket Message."
+        _,fbTokens:= getAdminsFBToken();
+        //var ids = []string{fbTokens}
+        sendNotificationWithFCM(fbTokens,data)
+        responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
+      }
+    }else{
+      fmt.Println("Executed")
+      data := make(map[string]string)
+      data["title"] = "Happy Rozgar"
+      data["body"] = "New Feedback/Ticket Message."
+      _,fbTokens:= getAdminsFBToken();
+      //var ids = []string{fbTokens}
+      sendNotificationWithFCM(fbTokens,data)
+      responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"true",ErrInResponse:""}})
+    }
+
+  }
+}
+
+func GetFeedback(w http.ResponseWriter, r *http.Request,interfaceName string){
+  credMap,err := Underdog.StringToMap(interfaceName)
+  if err != nil {
+    fmt.Println("error while converting string to map : ",err)
+    responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Error while converting string to map"}})
+  } else {
+    //fmt.Println("creadMap : ",credMap)
+    collection = setCollection("rozgar_db","feedback_collection")
+    feedbackDetailsStruct := []StructConfig.FeedbackDetails{}
+    err := collection.Find(bson.M{"feed_type":credMap["feedType"].(string)}).Select(bson.M{"feed_msg":1,"feed_by":1,"feed_on":1,"feed_reason":1,"feed_type":1}).All(&feedbackDetailsStruct)
+    if err != nil {
+      fmt.Println("Error while fetching user details list : ",err)
+      responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong... try again"}})
+    }else{
+      //fmt.Println(userDetailsStruct)
+      responder(w,[]StructConfig.FeedbackDetailsList{StructConfig.FeedbackDetailsList{Response:"true",FeedbackDetailsList:feedbackDetailsStruct,ErrInResponse:""}})
+    }
   }
 }
 

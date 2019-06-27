@@ -85,6 +85,20 @@ type ActivityDetails struct {
 	Amount float64 `json:"amount" bson:"amount"`
 }
 
+type FeedbackDetails struct {
+	FeedMsg string `json:"feed_msg" bson:"feed_msg"`
+	FeedBy string `json:"feed_by" bson:"feed_by"`
+	FeedOn int64 `json:"feed_on" bson:"feed_on"`
+	FeedReason string `json:"feed_reason" bson:"feed_reason"`
+	FeedType string `json:"feed_type" bson:"feed_type"`
+}
+
+type FeedbackDetailsList struct {
+	Response string `json:"response" bson:"response"`
+	FeedbackDetailsList []FeedbackDetails `json:"feedback_details_list" bson:"feedback_details_list"`
+	ErrInResponse string `json:"errInResponse"`
+}
+
 //Admin related structs end
 type BroadcastDetails struct {
 	BroadMsg string `json:"broad_msg" bson:"broad_msg"`
