@@ -91,7 +91,7 @@ func setCollection(dbName string, collectionName string) *mgo.Collection {
 }
 
 func GetConnected() *mgo.Session {
-	dialInfo, err := mgo.ParseURL("mongodb://localhost:27017")
+	dialInfo, err := mgo.ParseURL("mongodb://127.0.0.1:27017")
 	dialInfo.Direct = true
 	dialInfo.FailFast = true
 	dialInfo.Database = "rozgar_db"
@@ -489,7 +489,7 @@ func DonateToCompany(w http.ResponseWriter, r *http.Request,interfaceName string
               //Adding new user instance
               C:      "userDetails_collection",
               Id:     credMap["userId"].(string),
-              //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+              Assert: bson.M{"hrp": bson.M{"$gte": donateAmt}},
               Update: updt,
             },
             {
@@ -551,7 +551,7 @@ func DonateToCompanyAdmin(w http.ResponseWriter, r *http.Request,interfaceName s
               //Adding new user instance
               C:      "userDetails_collection",
               Id:     credMap["userId"].(string),
-              //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+              Assert: bson.M{"hrp": bson.M{"$gte": donateAmt}},
               Update: updt,
             },
             {
@@ -1145,7 +1145,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
       if floatErr != nil {
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
       }else{
-        if userId,userIdErr := getIdByIdCode(credMap["accountUserIdentityCode"].(string)); userIdErr != nil {
+        if userId,userIdErr := getIdByIdCode(credMap["accountUserIdentityCode"].(string),"Pending"); userIdErr != nil {
           fmt.Println("Error while getting pending userId : ",userIdErr)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
         }else{
@@ -1161,7 +1161,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
             //fmt.Println("idCode @ level1 : ",val)
             if strings.Contains(val,",") {
               //Transfer to val
-              if valId,valIdErr := getIdByIdCode(val); valIdErr != nil {
+              if valId,valIdErr := getIdByIdCode(val,""); valIdErr != nil {
                 fmt.Println("Unable to fetch id by id @ level1 : ",valIdErr)
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
               }else{
@@ -1181,7 +1181,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
             //fmt.Println("idCode @ level2 : ",val)
             if strings.Contains(val,",") {
               //Transfer to val
-              if valId,valIdErr := getIdByIdCode(val); valIdErr != nil {
+              if valId,valIdErr := getIdByIdCode(val,""); valIdErr != nil {
                 fmt.Println("Unable to fetch id by id @ level2 : ",valIdErr)
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
               }else{
@@ -1200,7 +1200,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
             //fmt.Println("idCode @ level3 : ",val)
             if strings.Contains(val,",") {
               //Transfer to val
-              if valId,valIdErr := getIdByIdCode(val); valIdErr != nil {
+              if valId,valIdErr := getIdByIdCode(val,""); valIdErr != nil {
                 fmt.Println("Unable to fetch id by id @ level3 : ",valIdErr)
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
               }else{
@@ -1219,7 +1219,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
             //fmt.Println("idCode @ level4 : ",val)
             if strings.Contains(val,",") {
               //Transfer to val
-              if valId,valIdErr := getIdByIdCode(val); valIdErr != nil {
+              if valId,valIdErr := getIdByIdCode(val,""); valIdErr != nil {
                 fmt.Println("Unable to fetch id by id @ level4 : ",valIdErr)
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
               }else{
@@ -1238,7 +1238,7 @@ func TopupAccount(w http.ResponseWriter, r *http.Request,interfaceName string){
             //fmt.Println("idCode @ level5 : ",val)
             if strings.Contains(val,",") {
               //Transfer to val
-              if valId,valIdErr := getIdByIdCode(val); valIdErr != nil {
+              if valId,valIdErr := getIdByIdCode(val,""); valIdErr != nil {
                 fmt.Println("Unable to fetch id by id @ level5 : ",valIdErr)
                 responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong, try again"}})
               }else{
@@ -1394,16 +1394,25 @@ func getCompanyId()(string,error){
   }
 }
 
-func getIdByIdCode(identityCode string)(map[string]string,error){
+func getIdByIdCode(identityCode string,status string)(map[string]string,error){
   collection = setCollection("rozgar_db","userDetails_collection")
   m := bson.M{}
+  var err error
   idUsernameMap := make(map[string]string)
-  err := collection.Find(bson.M{"identity_code": identityCode}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
+  if status == "Pending" {
+    err = collection.Find(bson.M{"identity_code": identityCode}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
+  }else if status == "" {
+    err = collection.Find(bson.M{"identity_code": identityCode,"account_status":"Active"}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
+  }else{
+    err = collection.Find(bson.M{"identity_code": identityCode}).Select(bson.M{"_id":1,"user_name":1,"firebase_token":1}).One(&m)
+  }
   if err != nil {
     if err.Error() == "not found" {
-      compId,_:= getCompanyId()
-      idUsernameMap["id"] = compId
-      idUsernameMap["user_name"] = "rozgar"
+      if status == "" {
+        compId,_:= getCompanyId()
+        idUsernameMap["id"] = compId
+        idUsernameMap["user_name"] = "rozgar"
+      }
       return idUsernameMap,nil
     }
     fmt.Println("Error while getIdByIdCode : ",err)
@@ -1554,7 +1563,7 @@ func TransferHRP(w http.ResponseWriter, r *http.Request,interfaceName string){
       if floatErr != nil {
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
       }else{
-        if toUserId,toUserIdErr := getIdByIdCode(credMap["toIdentityCode"].(string)); toUserIdErr != nil {
+        if toUserId,toUserIdErr := getIdByIdCode(credMap["toIdentityCode"].(string),"transfer"); toUserIdErr != nil {
           fmt.Println("Error while getting toUserId : ",toUserIdErr)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
@@ -1631,7 +1640,7 @@ func TransferHRPAdmin(w http.ResponseWriter, r *http.Request,interfaceName strin
       if floatErr != nil {
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
       }else{
-        if toUserId,toUserIdErr := getIdByIdCode(credMap["toIdentityCode"].(string)); toUserIdErr != nil {
+        if toUserId,toUserIdErr := getIdByIdCode(credMap["toIdentityCode"].(string),"transfer"); toUserIdErr != nil {
           fmt.Println("Error while getting toUserId : ",toUserIdErr)
           responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
@@ -1870,29 +1879,29 @@ func UsersList(w http.ResponseWriter, r *http.Request,interfaceName string){
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           if credMap["expression"].(string) == "isGreaterThan" {
-            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isLessThan" {
-            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isEqualsTo" {
-            err = collection.Find(bson.M{"user_role":"","hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isNotEqual" {
-            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           }
         }
       }else if credMap["isByUsername"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
-          err = collection.Find(bson.M{"user_role":"","user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         } else if credMap["expression"].(string) == "isNotEqual" {
-          err = collection.Find(bson.M{"user_role":"","user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         }
       }else if credMap["isByName"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
-          err = collection.Find(bson.M{"user_role":"","personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         } else if credMap["expression"].(string) == "isNotEqual" {
-          err = collection.Find(bson.M{"user_role":"","personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         }
       }else{
-        err = collection.Find(bson.M{"user_role":""}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+        err = collection.Find(bson.M{"user_role":""}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
       }
 
     }else{
@@ -1902,29 +1911,29 @@ func UsersList(w http.ResponseWriter, r *http.Request,interfaceName string){
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           if credMap["expression"].(string) == "isGreaterThan"{
-            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isLessThan"{
-            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isEqualsTo"{
-            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           } else if credMap["expression"].(string) == "isNotEqual"{
-            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+            err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
           }
         }
       }else if credMap["isByUsername"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
-          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         } else if credMap["expression"].(string) == "isNotEqual" {
-          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         }
       }else if credMap["isByName"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo" {
-          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         } else if credMap["expression"].(string) == "isNotEqual" {
-          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+          err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string),"personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
         }
       }else{
-        err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1}).All(&userDetailsStruct)
+        err = collection.Find(bson.M{"user_role":"","account_status":credMap["filter"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1,"identity_code":1,"direct_child_count":1}).All(&userDetailsStruct)
       }
 
     }
@@ -2168,7 +2177,7 @@ func RequestHRP(w http.ResponseWriter, r *http.Request,interfaceName string){
               //Adding new user instance
               C:      "userDetails_collection",
               Id:     companyId,
-              //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+              Assert: bson.M{"hrp": bson.M{"$gte": HrpAmt}},
               Update: debitAmt,
             },
             {
