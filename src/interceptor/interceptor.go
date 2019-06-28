@@ -56,7 +56,7 @@ import (
 var sess *mgo.Session
 var collection *mgo.Collection
 func setOrigin(w http.ResponseWriter, r *http.Request){
-	fmt.Println("In set origin")
+	//fmt.Println("In set origin")
 	if origin := r.Header.Get("Origin"); origin != "" {
 		//fmt.Println("Origin : ",origin)
 		//fmt.Println("Auth : ",r.Header.Get("Authorization"))
