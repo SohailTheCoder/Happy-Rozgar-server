@@ -63,7 +63,7 @@ func setOrigin(w http.ResponseWriter, r *http.Request){
 		w.Header().Set("Access-Control-Allow-Origin", /*"http://localhost:7888"*/origin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST,GET,DELETE,UPDATE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers",/*"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization"*/"Content-Type, Authorization")
-		w.Header().Set("Content-Type", "x-www-form-urlencoded,application/json")
+		w.Header().Set("Content-Type", "x-www-form-urlencoded, application/json, text/*")
 
 		//for file uploading
 		r.ParseMultipartForm(32 << 20)

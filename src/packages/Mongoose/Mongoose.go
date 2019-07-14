@@ -410,11 +410,17 @@ func isValidForWithdrawal(userName string)bool{
       fmt.Println("Error while isValidForWithdrawal : ",pipeErr)
       return false
     }else{
-      if retArr,_:= Underdog.InterfaceArrToMap(m[0]["transaction_history"]); len(retArr) > 0 {
-        return false
-      }else{
+      if len(m) > 0 {
+        if retArr,_:= Underdog.InterfaceArrToMap(m[0]["transaction_history"]); len(retArr) > 0 {
+          return false
+        }else{
+          return true
+        }
+      }else {
         return true
       }
+
+
     }
   }else{
     fmt.Println("Today is : ",time.Now().Weekday())
@@ -1129,16 +1135,23 @@ func adminCounts(identityCode string)StructConfig.AdminCounts {
   }else{
     companyBalance = userDetailsStruct.HRP
   }
-  m := []bson.M{}
-  withdrawalCount := 0
-  //withdrawalCount,err6 := collection.Find(bson.M{"transaction_history.$.transaction_for":"Withdrawal","transaction_history.$.status":"Processing"}).Count()
-  err6 := collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Processing"}}}}}}}}}).All(&m)
+  //m := []bson.M{}
+  //withdrawalCount := 0
+  withdrawalCount,err6 := collection.Find(bson.M{"transaction_history.$.transaction_for":"Withdrawal","transaction_history.$.status":"Processing"}).Count()
+  //err6 := collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Processing"}}}}}},"_id":0}}}).All(&m)
   if err6 != nil {
     fmt.Println("Error while withdrawal count : ",err6)
     withdrawalCount = 0
   }else{
-    transactionHistoryStruct := []StructConfig.TransactionHistory{}
-    b, errMar := json.Marshal(m[0]["transaction_history"])
+    //transactionHistoryStruct := []StructConfig.TransactionHistory{}
+    /*for i := 0; i < len(m); i++ {
+      if m[i]["transaction_history"] != nil {
+        withdrawalCount = withdrawalCount + 1
+        fmt.Println(withdrawalCount)
+      }
+    }
+    fmt.Println("m : ",m)*/
+    /*b, errMar := json.Marshal(m)
     if errMar != nil {
       fmt.Println("error while marshal : ", errMar)
       withdrawalCount = 0
@@ -1150,7 +1163,7 @@ func adminCounts(identityCode string)StructConfig.AdminCounts {
         withdrawalCount = 0
       }
     }
-    withdrawalCount = len(transactionHistoryStruct)
+    withdrawalCount = len(transactionHistoryStruct)*/
   }
   return StructConfig.AdminCounts{AdminActiveUsers:int(active),AdminInactiveUsers:int(non_active),AdminActivitiesCount:int(activities),AdminTotalEarnings:totalEarnedAmount(identityCode),CompanyActiveUsers:int(companyActive),CompanyInactiveUsers:int(companyInactive),AllWithdrawalRequest:withdrawalCount,CompanyNewJoineeMonth:0,CompanyTotalEarnings:totalEarnedCompany("hrp"),CompanyBalance:companyBalance,CompanyFollowerCounts:getFollowerCounts("hrp")}
 }
