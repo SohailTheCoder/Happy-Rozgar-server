@@ -283,17 +283,38 @@ func UpdateBankDetails(w http.ResponseWriter, r *http.Request,interfaceName stri
       bankDetailsStruct := StructConfig.BankDetails{AccountNumber:credMap["accountNumber"].(string),/*BankName:credMap["bankName"].(string),*/IFSCode:credMap["ifsCode"].(string)/*,BankAddress:credMap["bankAddress"].(string)*/}
       ops := []txn.Op{}
       updt := bson.M{"$inc": bson.M{"hrp": -50.0},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:-50.0,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Bank Details Update",BankTransId:"",Status:"Done",Level:""}}}
+      updtBank := bson.M{"$inc": bson.M{"hrp": 50.0},"$push":bson.M{"transaction_history":&StructConfig.TransactionHistory{TransId:bson.ObjectId(bson.NewObjectId()).Hex(),To:"company",From:credMap["userName"].( string),Units:50.0,TransactionOn:time.Now().UnixNano()/(int64(time.Millisecond)),TransactionFor:"Bank Details Update",BankTransId:"",Status:"Done",Level:""}}}
       query := bson.M{"$set":bson.M{"bank_details":bankDetailsStruct}}
       runner := txn.NewRunner(setCollection("rozgar_db","transaction_collection"))
       //if user_name != "" && level != "" && id != "" {
       if credMap["extraCharge"].(string) == "true" {
-        fmt.Println("Extra charge applied")
-        ops = append(ops,txn.Op{
-          C:      "userDetails_collection",
-          Id:     credMap["userId"].(string),
-          Assert: bson.M{"hrp": bson.M{"$gte": 50.0}},
-          Update: updt,
-        })
+        if companyId,comIdErr := getCompanyId(); comIdErr != nil {
+          fmt.Println("Error while getting companyId : ",comIdErr)
+          responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
+        }else{
+          fmt.Println("Extra charge applied")
+          /*ops = append(ops,txn.Op{
+            C:      "userDetails_collection",
+            Id:     credMap["userId"].(string),
+            Assert: bson.M{"hrp": bson.M{"$gte": 50.0}},
+            Update: updt,
+          })*/
+          ops = []txn.Op{{
+              //Adding new user instance
+              C:      "userDetails_collection",
+              Id:     credMap["userId"].(string),
+              Assert: bson.M{"hrp": bson.M{"$gte": 50.0}},
+              Update: updt,
+            },
+            {
+                //Adding new user instance
+                C:      "userDetails_collection",
+                Id:     companyId,
+                //Assert: bson.M{"name": bson.M{"$eq": "prashant"}},
+                Update: updtBank,
+            },
+          }
+        }
       }
 
       ops = append(ops,txn.Op{
@@ -986,7 +1007,7 @@ func getTeamCounts(identityCode string)StructConfig.TeamCounts {
     active = 0
   }
 
-  non_active,err2 := collection.Find(bson.M{"identity_code":bson.RegEx{``+identityCode+`,`,""},"account_status":"Pending"}).Count()
+  non_active,err2 := collection.Find(bson.M{"identity_code":bson.RegEx{``+identityCode+`,`,""},"$or":[]bson.M{bson.M{"account_status":"Pending"},bson.M{"account_status":"Suspended"}}}).Count()
   if err1 != nil {
     fmt.Println("Error while getting non_active team counts : ",err2)
     non_active = 0
@@ -1021,7 +1042,7 @@ func totalEarnedAmount(identityCode string)float64{
 func totalEarnedCompany(identityCode string)float64{
   m := []bson.M{}
   totalEarned := 0.0
-  err := collection.Pipe([]bson.M{bson.M{"$match":bson.M{"identity_code":identityCode}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Topup"}}}}}}}).All(&m)
+  err := collection.Pipe([]bson.M{bson.M{"$match":bson.M{"identity_code":identityCode}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$or":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Topup"}},bson.M{"$eq":[]interface{}{"$$t.transaction_for","Bank Details Update"}}}}}}}}}).All(&m)
   if err != nil {
     fmt.Println("Error while total Earned ammount : ",err)
   }else{
@@ -1140,35 +1161,33 @@ func adminCounts(identityCode string)StructConfig.AdminCounts {
   }else{
     companyBalance = userDetailsStruct.HRP
   }
-  //m := []bson.M{}
-  //withdrawalCount := 0
-  withdrawalCount,err6 := collection.Find(bson.M{"transaction_history.$.transaction_for":"Withdrawal","transaction_history.$.status":"Processing"}).Count()
-  //err6 := collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Processing"}}}}}},"_id":0}}}).All(&m)
+  m := []bson.M{}
+  withdrawalCount := 0
+  //withdrawalCount,err6 := collection.Find(bson.M{"transaction_history.$.transaction_for":"Withdrawal","transaction_history.$.status":"Processing"}).Count()
+  err6 := collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Processing"}}}}}},"_id":0}}}).All(&m)
   if err6 != nil {
     fmt.Println("Error while withdrawal count : ",err6)
     withdrawalCount = 0
   }else{
-    //transactionHistoryStruct := []StructConfig.TransactionHistory{}
-    /*for i := 0; i < len(m); i++ {
-      if m[i]["transaction_history"] != nil {
-        withdrawalCount = withdrawalCount + 1
-        fmt.Println(withdrawalCount)
+    grandTransactionHistoryStruct := []StructConfig.TransactionHistory{}
+    transactionHistoryStruct := []StructConfig.TransactionHistory{}
+    for i := 0; i < len(m); i++ {
+      b, errMar := json.Marshal(m[i]["transaction_history"])
+      if errMar != nil {
+        fmt.Println("error while marshal : ", errMar)
+        //fmt.Fprintf(w, "%s", b)
+      } else {
+        errUnm := json.Unmarshal([]byte(b), &transactionHistoryStruct)
+        if errUnm != nil {
+          fmt.Println("Error while unmarshal Grand : ", errUnm)
+        }else{
+          for ind := 0; ind < len(transactionHistoryStruct); ind++ {
+            grandTransactionHistoryStruct = append(grandTransactionHistoryStruct,transactionHistoryStruct[ind])
+          }
+        }
       }
     }
-    fmt.Println("m : ",m)*/
-    /*b, errMar := json.Marshal(m)
-    if errMar != nil {
-      fmt.Println("error while marshal : ", errMar)
-      withdrawalCount = 0
-      //fmt.Fprintf(w, "%s", b)
-    } else {
-      errUnm := json.Unmarshal([]byte(b), &transactionHistoryStruct)
-      if errUnm != nil {
-        fmt.Println("Error while unmarshal Grand : ", errUnm)
-        withdrawalCount = 0
-      }
-    }
-    withdrawalCount = len(transactionHistoryStruct)*/
+    withdrawalCount = len(grandTransactionHistoryStruct)
   }
   return StructConfig.AdminCounts{AdminActiveUsers:int(active),AdminInactiveUsers:int(non_active),AdminActivitiesCount:int(activities),AdminTotalEarnings:totalEarnedAmount(identityCode),CompanyActiveUsers:int(companyActive),CompanyInactiveUsers:int(companyInactive),AllWithdrawalRequest:withdrawalCount,CompanyNewJoineeMonth:0,CompanyTotalEarnings:totalEarnedCompany("hrp"),CompanyBalance:companyBalance,CompanyFollowerCounts:getFollowerCounts("hrp")}
 }
@@ -1825,29 +1844,22 @@ func GetFollowerListByLevel(w http.ResponseWriter, r *http.Request,interfaceName
     userDetailsStruct := []StructConfig.UserDetails{}
     collection = setCollection("rozgar_db","userDetails_collection")
     if credMap["level"].(string) == "level1" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level1":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+(?!,)$`,""}}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+(?!,)$`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "level2" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level2":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+(?!,)$`,""}}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+(?!,)$`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "level3" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level3":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+(?!,)$`,""}}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+(?!,)$`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "level4" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level4":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+,\d+(?!,)$`,""}}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+,\d+(?!,)$`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "level5" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level5":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+,\d+,\d+(?!,)$`,""}}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,\d+,\d+,\d+,\d+,\d+(?!,)$`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "active" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level5":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"sponsor_uname":credMap["userName"].(string),"account_status":"Active"}).All(&userDetailsStruct)
+      //err = collection.Find(bson.M{"sponsor_uname":credMap["userName"].(string),"account_status":"Active"}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,`,""},"account_status":"Active"}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "inactive" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level5":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"sponsor_uname":credMap["userName"].(string),"account_status":"Inactive"}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,`,""},"$or":[]bson.M{bson.M{"account_status":"Pending"},bson.M{"account_status":"Suspended"}}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else if credMap["level"].(string) == "total" {
-      //err = collection.Find(bson.M{"user_name":credMap["userName"].(string)}).Select(bson.M{"level5":1}).One(&levelDocStruct)
-      err = collection.Find(bson.M{"sponsor_uname":credMap["userName"].(string)}).All(&userDetailsStruct)
+      err = collection.Find(bson.M{"identity_code":bson.RegEx{``+credMap["identityCode"].(string)+`,`,""}}).Select(bson.M{"_id":0,"firebase_token":0,"bank_details":0,"direct_child_count":0,"transaction_history":0}).All(&userDetailsStruct)
     }else{
       fmt.Println("Level not provided or undefined")
       responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong... try again"}})
@@ -2092,40 +2104,42 @@ func WithdrawalRequestList(w http.ResponseWriter, r *http.Request,interfaceName 
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           if credMap["expression"].(string) == "isGreaterThan" {
-            //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$gt":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$gt":[]interface{}{"$$t.units",hrp}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isLessThan" {
-            //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$lt":[]interface{}{"$$t.units",hrp}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isEqualsTo" {
             //err = collection.Find(bson.M{"user_role":"","hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.units",hrp}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isNotEqual" {
             //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$ne":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":"","transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$ne":[]interface{}{"$$t.units",hrp}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           }
         }
       }else if credMap["isByUsername"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
           //err = collection.Find(bson.M{"user_role":"","user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          //pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":credMap["keyword"].(string),"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         } else if credMap["expression"].(string) == "isNotEqual" {
           //err = collection.Find(bson.M{"user_role":"","user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         }
       }else if credMap["isByName"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
           //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          //pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":credMap["keyword"].(string)}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         } else if credMap["expression"].(string) == "isNotEqual" {
           //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          //pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         }
       }else{
-        pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":"","transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
       }
     }else if credMap["filter"].(string) == "accepted" {
       if credMap["isByHRP"].(bool) {
@@ -2134,44 +2148,83 @@ func WithdrawalRequestList(w http.ResponseWriter, r *http.Request,interfaceName 
             responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
         }else{
           if credMap["expression"].(string) == "isGreaterThan" {
-            //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$gt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$gt":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$gt":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isLessThan" {
-            //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$lt":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$lt":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isEqualsTo" {
             //err = collection.Find(bson.M{"user_role":"","hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           } else if credMap["expression"].(string) == "isNotEqual" {
             //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-            condition := bson.M{"$and":[]interface{}{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$ne":[]interface{}{"$$t.units",hrp}}}}
-            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$ne":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
           }
         }
       }else if credMap["isByUsername"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
           //err = collection.Find(bson.M{"user_role":"","user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":credMap["keyword"].(string),"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         } else if credMap["expression"].(string) == "isNotEqual" {
           //err = collection.Find(bson.M{"user_role":"","user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         }
       }else if credMap["isByName"].(bool) {
         if credMap["expression"].(string) == "isEqualsTo"{
           //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":credMap["keyword"].(string)}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":credMap["keyword"].(string),"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         } else if credMap["expression"].(string) == "isNotEqual" {
           //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
-          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"$and":[]bson.M{bson.M{"transaction_history.transaction_for":"Withdrawal"},bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}}}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         }
       }else{
-        pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":"","transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Paid"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
         //err = collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["startDate"].(string))}},bson.M{"$lte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["endDate"].(string))}}}}}}}}}).All(&m)
       }
     }else if credMap["filter"].(string) == "declined" {
-      pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":"","transaction_history.transaction_for":"Withdrawal"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+      if credMap["isByHRP"].(bool) {
+        hrp,floatErr := strconv.ParseFloat(credMap["keyword"].(string),64)
+        if floatErr != nil {
+            responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong"}})
+        }else{
+          if credMap["expression"].(string) == "isGreaterThan" {
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$gt":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          } else if credMap["expression"].(string) == "isLessThan" {
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$lt":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          } else if credMap["expression"].(string) == "isEqualsTo" {
+            //err = collection.Find(bson.M{"user_role":"","hrp":hrp}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          } else if credMap["expression"].(string) == "isNotEqual" {
+            //err = collection.Find(bson.M{"user_role":"","hrp":bson.M{"$ne":hrp}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+            condition := bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$ne":[]interface{}{"$$t.units",hrp}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}
+            pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":condition}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+          }
+        }
+      }else if credMap["isByUsername"].(bool) {
+        if credMap["expression"].(string) == "isEqualsTo"{
+          //err = collection.Find(bson.M{"user_role":"","user_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":credMap["keyword"].(string),"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        } else if credMap["expression"].(string) == "isNotEqual" {
+          //err = collection.Find(bson.M{"user_role":"","user_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        }
+      }else if credMap["isByName"].(bool) {
+        if credMap["expression"].(string) == "isEqualsTo"{
+          //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":credMap["keyword"].(string)}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":credMap["keyword"].(string),"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        } else if credMap["expression"].(string) == "isNotEqual" {
+          //err = collection.Find(bson.M{"user_role":"","personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)}}).Select(bson.M{"user_id":1,"user_name":1,"sponsor_uname":1,"hrp":1,"account_status":1,"user_added_on":1,"personal_info.full_name":1}).All(&userDetailsStruct)
+          pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"personal_info.full_name":bson.M{"$ne":credMap["keyword"].(string)},"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        }
+      }else{
+        pipeErr = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":""}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for","Withdrawal"}},bson.M{"$eq":[]interface{}{"$$t.status","Declined"}}}}}},"user_name":1,"personal_info.full_name":1,"user_id":1}}}).All(&m)
+        //err = collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["startDate"].(string))}},bson.M{"$lte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["endDate"].(string))}}}}}}}}}).All(&m)
+      }
     }
     if pipeErr != nil {
       fmt.Println("Error while fetching withdrawal request list : ",pipeErr)
@@ -2720,7 +2773,7 @@ func GetCompanyEarningRecords(w http.ResponseWriter, r *http.Request,interfaceNa
       err = collection.Pipe([]bson.M{bson.M{"$match":bson.M{"user_role":"company"}},bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gt":[]interface{}{"$$t.units",0}}}}}}}}}).All(&m)
     }
 
-    b, errMar := json.Marshal(m[0]["transaction_history"])
+    /*b, errMar := json.Marshal(m[0]["transaction_history"])
     if errMar != nil {
       fmt.Println("error while marshal : ", errMar)
       //fmt.Fprintf(w, "%s", b)
@@ -2729,17 +2782,26 @@ func GetCompanyEarningRecords(w http.ResponseWriter, r *http.Request,interfaceNa
       if errUnm != nil {
         fmt.Println("Error while unmarshal Grand : ", errUnm)
       }
-    }
+    }*/
 
     if err != nil {
       fmt.Println("Error while fetching transaction history : ",err)
       responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong... try again"}})
     }else{
-      //fmt.Println("userDetailsStruct : ",transactionHistoryStruct)
+      b, errMar := json.Marshal(m[0]["transaction_history"])
+      if errMar != nil {
+        fmt.Println("error while marshal : ", errMar)
+        //fmt.Fprintf(w, "%s", b)
+      } else {
+        errUnm := json.Unmarshal([]byte(b), &transactionHistoryStruct)
+        if errUnm != nil {
+          fmt.Println("Error while unmarshal Grand : ", errUnm)
+        }
+      }
       responder(w,[]StructConfig.TransactionHistoryResponse{StructConfig.TransactionHistoryResponse{Response:"true",TransactionHistory:transactionHistoryStruct,ErrInResponse:""}})
     }
   }else{
-    fmt.Println("Creadential map is empty...")
+    fmt.Println("Credential map is empty...")
     responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong... try again"}})
   }
 }
@@ -2751,6 +2813,7 @@ func GetReports(w http.ResponseWriter, r *http.Request,interfaceName string){
   } else if len(credMap) > 0 {
     collection = setCollection("rozgar_db","userDetails_collection")
     //userDetailsStruct := StructConfig.UserDetails{}
+    grandTransactionHistoryStruct := []StructConfig.TransactionHistory{}
     transactionHistoryStruct := []StructConfig.TransactionHistory{}
     var err error
     //Generate HRP Request HRP
@@ -2768,24 +2831,32 @@ func GetReports(w http.ResponseWriter, r *http.Request,interfaceName string){
       err = collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["startDate"].(string))}},bson.M{"$lte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["endDate"].(string))}}}}}}}}}).All(&m)
     }*/
     fmt.Println("Transaction Type : ",credMap["transactionType"].(string))
-    err = collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["startDate"].(string))}},bson.M{"$lte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["endDate"].(string))}}}}}}}}}).All(&m)
-    b, errMar := json.Marshal(m[0]["transaction_history"])
-    if errMar != nil {
-      fmt.Println("error while marshal : ", errMar)
-      //fmt.Fprintf(w, "%s", b)
-    } else {
-      errUnm := json.Unmarshal([]byte(b), &transactionHistoryStruct)
-      if errUnm != nil {
-        fmt.Println("Error while unmarshal Grand : ", errUnm)
-      }
-    }
-
+    err = collection.Pipe([]bson.M{bson.M{"$project":bson.M{"transaction_history":bson.M{"$filter":bson.M{"input":"$transaction_history","as":"t","cond":bson.M{"$and":[]bson.M{bson.M{"$eq":[]interface{}{"$$t.transaction_for",credMap["transactionType"].(string)}},bson.M{"$gte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["startDate"].(string))}},bson.M{"$lte":[]interface{}{"$$t.transaction_on",stringToInt64(credMap["endDate"].(string))}}}}}},"_id":0}}}).All(&m)
     if err != nil {
       fmt.Println("Error while fetching transaction history : ",err)
       responder(w,[]StructConfig.SingleResponse{StructConfig.SingleResponse{Response:"false",ErrInResponse:"Something went wrong... try again"}})
     }else{
-      //fmt.Println("userDetailsStruct : ",transactionHistoryStruct)
-      responder(w,[]StructConfig.TransactionHistoryResponse{StructConfig.TransactionHistoryResponse{Response:"true",TransactionHistory:transactionHistoryStruct,ErrInResponse:""}})
+      for i := 0; i < len(m); i++ {
+        //if m[i]["transaction_history"] != nil {
+          //fmt.Println("Index : ",i,">>",m[i])
+          b, errMar := json.Marshal(m[i]["transaction_history"])
+          if errMar != nil {
+            fmt.Println("error while marshal : ", errMar)
+            //fmt.Fprintf(w, "%s", b)
+          } else {
+            errUnm := json.Unmarshal([]byte(b), &transactionHistoryStruct)
+            if errUnm != nil {
+              fmt.Println("Error while unmarshal Grand : ", errUnm)
+            }else{
+              for ind := 0; ind < len(transactionHistoryStruct); ind++ {
+                grandTransactionHistoryStruct = append(grandTransactionHistoryStruct,transactionHistoryStruct[ind])
+              }
+            }
+          }
+        //}
+      }
+      //fmt.Println("transactionHistoryStruct : ",grandTransactionHistoryStruct)
+      responder(w,[]StructConfig.TransactionHistoryResponse{StructConfig.TransactionHistoryResponse{Response:"true",TransactionHistory:grandTransactionHistoryStruct,ErrInResponse:""}})
     }
   }else{
     fmt.Println("Creadential map is empty...")
